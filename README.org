@@ -144,14 +144,7 @@ It triggers previews as links are fontified, rather than implementing
 cursor-entry/exit toggling.  Rendering still comes from
 =org-quiver-preview-function=; org-flyimage supplies the automatic trigger.
 
-* Development
-
-#+begin_src sh
-make test
-#+end_src
-
-To also exercise native Typst export, put a compatible ox-typst checkout on
-the load path: =make test LOAD_PATH="-L /path/to/ox-typst"=.
+* License
 
 The package and converters are MIT-licensed.  The Fletcher port retains the
 upstream copyright and license notice in =org-quiver-fletcher.el=.
