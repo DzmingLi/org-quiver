@@ -120,6 +120,30 @@ Use Org's =org-link-preview= / =C-c C-x C-v= to display or clear links.  Links
 with descriptions need Org's include-linked option (numeric prefix 1).
 No custom interactive preview command is added.
 
+** Automatic previews with org-flyimage
+
+For automatic previews while editing, org-quiver can be paired with
+[[https://github.com/misohena/org-inline-image-fix#automatic-image-update][org-flyimage]] from the org-inline-image-fix repository.  Use a version
+with Org 9.8 support: it calls =org-link-preview-region= during link
+fontification, so it also invokes the =:preview= handler registered for
+=quiver:= links.
+
+Install =org-flyimage.el= on =load-path= and configure a preview provider
+as described above, then enable the optional mode:
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'org
+  (require 'org-flyimage)
+  (add-hook 'org-mode-hook #'org-flyimage-mode))
+#+end_src
+
+For an already open Org buffer, run =M-x org-flyimage-mode=.  By default,
+org-flyimage processes bracket links without forcing previews for links
+with descriptions; use =[[quiver:...]]= for automatic diagram previews.
+It triggers previews as links are fontified, rather than implementing
+cursor-entry/exit toggling.  Rendering still comes from
+=org-quiver-preview-function=; org-flyimage supplies the automatic trigger.
+
 * Development
 
 #+begin_src sh
