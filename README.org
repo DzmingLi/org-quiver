@@ -31,11 +31,34 @@ There is deliberately no update command or clipboard reader.
 #+end_example
 
 Bare payloads, e.g. =[[quiver:WzAsMF0=]]=, also work.  Full URLs preserve editor
-options and label syntax.  New diagrams default to Quiver's LaTeX renderer;
-set =org-quiver-default-renderer= to ="typst"= for Typst labels.  Existing URLs
-are unaffected.  =org-quiver-browse-function= defaults to =browse-url=, so it
-uses the existing browser/EWM/Firefox setup.  For a local editor, customize
+options and label syntax.  Links open through =browse-url= and use your existing
+=browse-url-browser-function= configuration.  For a local editor, customize
 =org-quiver-base-url=.
+
+** Label syntax for new diagrams
+
+=org-quiver-default-renderer= selects the formula syntax you write in node and
+arrow labels when =org-quiver-insert= creates a new blank diagram:
+
+| Value | Label syntax in the editor | Example |
+|-------+----------------------------+---------|
+| ="katex"= (default) | LaTeX, rendered by KaTeX | =\alpha= |
+| ="typst"= | Typst | =alpha= |
+
+For new diagrams with Typst labels:
+
+#+begin_src emacs-lisp
+(setq org-quiver-default-renderer "typst")
+#+end_src
+
+The setting adds =r=katex= or =r=typst= to the new diagram's editor URL.
+It does not change existing links, override a URL or payload supplied to
+=org-quiver-insert=, or translate existing labels.
+
+The Org export backend separately determines the output: LaTeX uses tikz-cd;
+Typst uses Fletcher.  This setting does not select either exporter.  Exporting
+labels to a different formula language may require translation; see
+[[*Label syntax and limits][Label syntax and limits]].
 
 * Native export
 
@@ -45,9 +68,9 @@ uses the existing browser/EWM/Firefox setup.  For a local editor, customize
 | ox-typst and descendants | Typst / Fletcher | org-quiver-fletcher |
 
 Preview images are never substituted into these exports.  The public
-converters accept a URL or payload and return source text.  Override
-=org-quiver-latex-export-function= or =org-quiver-typst-export-function= to
-replace them; callbacks receive =(URL DESCRIPTION BACKEND INFO)=.
+converters accept a URL or payload and return source text.  Org export calls
+the bundled converter for the selected backend directly.  Unsupported backends
+signal an error.
 
 The Typst exporter must support Org custom-link =:export= callbacks.  The
 [[https://github.com/DzmingLi/ox-typst][DzmingLi/ox-typst fork]] includes this support.  Versions without it export

@@ -10,7 +10,7 @@
 ;;; Commentary:
 ;; Keep diagram data in quiver: links.  `org-quiver-insert' inserts a blank
 ;; diagram and opens the browser.  Follow and edit the link through Org's
-;; ordinary commands.  Renderer callbacks are extension points.
+;; ordinary commands.  Export diagrams as tikz-cd or Fletcher.
 
 ;;; Code:
 
@@ -34,10 +34,6 @@
 Full URLs from this editor and https://q.uiver.app/ are accepted."
   :type 'string)
 
-(defcustom org-quiver-browse-function #'browse-url
-  "Function called with a Quiver URL to open the diagram."
-  :type 'function)
-
 (defcustom org-quiver-preview-function nil
   "Optional function that previews a Quiver link.
 Called with (OVERLAY URL LINK) in the Org document buffer.  URL is the
@@ -50,22 +46,19 @@ This option may be set buffer-locally to select a document's provider."
   :type '(choice (const :tag "No preview" nil) function))
 
 (defcustom org-quiver-default-renderer "katex"
-  "Label syntax selected when inserting a new blank diagram.
-Existing links retain their own renderer regardless of this setting."
-  :type '(choice (const "katex") (const "typst")))
+  "Formula syntax for labels in new blank Quiver diagrams.
+\"katex\" selects LaTeX label syntax, for example \\alpha.
+\"typst\" selects Typst label syntax, for example alpha.
 
-(defcustom org-quiver-latex-export-function #'org-quiver-export-latex
-  "Renderer for LaTeX and derived backends, producing tikz-cd.
-Called with URL, DESCRIPTION, BACKEND and INFO, like an Org link exporter
-except that URL is the complete editor URL.  Return backend-ready text.
-DESCRIPTION has already been exported.  The document must arrange any
-required packages or preamble.  Nil signals that rendering is unavailable."
-  :type '(choice (const :tag "Not implemented" nil) function))
+Used only when `org-quiver-insert' creates a blank diagram without an
+explicit URL or payload.  It sets the editor URL's r parameter; existing
+links and explicitly supplied diagrams keep their own settings.
 
-(defcustom org-quiver-typst-export-function #'org-quiver-export-fletcher
-  "Renderer for Typst and derived backends, producing Fletcher.
-Uses the same contract as `org-quiver-latex-export-function'."
-  :type '(choice (const :tag "Not implemented" nil) function))
+This selects the label syntax in the Quiver editor, not the Org export
+backend.  LaTeX export uses tikz-cd and Typst export uses Fletcher,
+regardless of this option.  Changing it does not translate existing labels."
+  :type '(choice (const :tag "LaTeX labels (KaTeX)" "katex")
+                 (const :tag "Typst labels" "typst")))
 
 (defun org-quiver--payload-p (text)
   "Whether TEXT has the syntax of an opaque Quiver base64 payload.
@@ -106,8 +99,8 @@ not the internal diagram schema."
       (concat org-quiver-base-url "#q=" path))))
 
 (defun org-quiver-follow (path _argument)
-  "Open Quiver PATH through the configured browser workflow."
-  (funcall org-quiver-browse-function (org-quiver-url path)))
+  "Open Quiver PATH using Emacs browser configuration."
+  (browse-url (org-quiver-url path)))
 
 (defun org-quiver-preview (overlay path link)
   "Delegate OVERLAY, PATH and LINK to the optional preview provider."
@@ -132,23 +125,16 @@ link with ordinary Org commands; this command does not read the clipboard."
 
 (defun org-quiver-export (path description backend info)
   "Render PATH and DESCRIPTION for BACKEND with export context INFO.
-Without a renderer, fail explicitly instead of silently omitting the
-diagram.  Typst defaults to the bundled Fletcher converter."
+LaTeX and derived backends use tikz-cd; Typst and derived backends use
+Fletcher.  Signal an error for unsupported backends."
   (require 'ox)
-  (let* ((url (org-quiver-url path))
-         (renderer
-          (cond
-           ((org-export-derived-backend-p backend 'latex)
-            org-quiver-latex-export-function)
-           ((org-export-derived-backend-p backend 'typst)
-            org-quiver-typst-export-function))))
-    (unless renderer
-      (user-error "Quiver %s rendering is not configured (tikz-cd/Fletcher interfaces only)"
-                  backend))
-    (let ((result (funcall renderer url description backend info)))
-      (unless (stringp result)
-        (error "Quiver renderer must return a string"))
-      result)))
+  (let ((url (org-quiver-url path)))
+    (cond
+     ((org-export-derived-backend-p backend 'latex)
+      (org-quiver-export-latex url description backend info))
+     ((org-export-derived-backend-p backend 'typst)
+      (org-quiver-export-fletcher url description backend info))
+     (t (user-error "Quiver export does not support backend %s" backend)))))
 
 (org-link-set-parameters "quiver"
                          :follow #'org-quiver-follow
