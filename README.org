@@ -1,0 +1,133 @@
+#+TITLE: org-quiver
+
+Keep editable [[https://q.uiver.app/][Quiver]] diagrams in Org links.  The complete diagram lives in the
+URL fragment; no diagram-hosting service or separate file format is needed.
+
+Requires Emacs 30.2+ and Org 9.8+.  Converters are pure Emacs Lisp: no Node,
+browser automation, clipboard integration, or mandatory preview package.
+
+* Install
+
+Put this checkout on =load-path=, then load the package after Org:
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/org-quiver")
+(with-eval-after-load 'org (require 'org-quiver))
+#+end_src
+
+Install all four =org-quiver*.el= files, not just the main file.  With a
+recipe-based package manager, use the repository =DzmingLi/org-quiver=.
+The repository is public but is not currently submitted to MELPA.
+
+* Edit
+
+=M-x org-quiver-insert= inserts a blank diagram link and opens Quiver without
+prompting.  Follow it with Org's ordinary =C-c C-o=.  After editing in the
+browser, replace the URL in the Org link using normal editing commands.
+There is deliberately no update command or clipboard reader.
+
+#+begin_example
+[[quiver:https://q.uiver.app/#q=WzAsMixbMCwwLCJBIl0sWzEsMCwiQiJdLFswLDFdXQ==]]
+#+end_example
+
+Bare payloads, e.g. =[[quiver:WzAsMF0=]]=, also work.  Full URLs preserve editor
+options and label syntax.  New diagrams default to Quiver's LaTeX renderer;
+set =org-quiver-default-renderer= to ="typst"= for Typst labels.  Existing URLs
+are unaffected.  =org-quiver-browse-function= defaults to =browse-url=, so it
+uses the existing browser/EWM/Firefox setup.  For a local editor, customize
+=org-quiver-base-url=.
+
+* Native export
+
+| Org backend | Output | Converter |
+|-------------+--------+-----------|
+| ox-latex and descendants | LaTeX / tikz-cd | org-quiver-latex |
+| ox-typst and descendants | Typst / Fletcher | org-quiver-fletcher |
+
+Preview images are never substituted into these exports.  The public
+converters accept a URL or payload and return source text.  Override
+=org-quiver-latex-export-function= or =org-quiver-typst-export-function= to
+replace them; callbacks receive =(URL DESCRIPTION BACKEND INFO)=.
+
+The Typst exporter must support Org custom-link =:export= callbacks.  The
+[[https://github.com/DzmingLi/ox-typst][DzmingLi/ox-typst fork]] includes this support.  Versions without it export
+an ordinary hyperlink; org-quiver does not advise or patch their functions.
+Fletcher output includes an import of =@preview/fletcher:0.5.8=.
+
+For LaTeX documents, put this in the preamble (quiver.sty loads tikz-cd):
+
+#+begin_example
+#+LATEX_HEADER: \usepackage{quiver}
+#+end_example
+
+** Label syntax and limits
+
+The v0 Quiver data format is supported.  Source labels retain their original
+syntax: choosing an export backend does not make LaTeX and Typst math
+interchangeable.  Cross-syntax export requires
+=org-quiver-convert-labels-function= except for empty labels, single ASCII
+letters and integers without macros.  This optional callback receives
+=(LABELS FROM TO MACROS)= and returns equally many strings.  FROM/TO are
+=latex= or =typst= symbols.  For example, a Typst-to-LaTeX translator can use
+org-typst-math's existing math helper; it is not needed by LaTeX-only users.
+LaTeX-to-Typst label translation is not bundled.
+
+Fletcher mappings follow Quiver at commit
+=2f289ecbae9b7e5a473e04b924750c538ed5c4cf=.  Supported arrow marks, multiplicity,
+colours, label placement, curves, offsets and loops are ported in Elisp.
+Upstream-incompatible shortened arrows, arrows between arrows, coil tails,
+corners/adjunctions and offset curves/loops fail explicitly.  Like the
+upstream Fletcher exporter, alpha is not represented in exported colours.
+
+The initial tikz-cd exporter supports vertex grids, labels, colours,
+single/double arrows, common tail/head styles, curves, offsets, shortening
+and loops.  Higher cells, corner/adjunction marks, decorated double arrows,
+some custom marks and translucent colours fail explicitly.  Shortening
+requires quiver.sty 1.6+.  This is not a complete port of every Quiver feature.
+
+Inline editor macros are preserved when syntax matches.  Remote macro URLs
+are never fetched; use document headers instead.  Treat labels and macros as
+source code, just as you would other LaTeX/Typst document content.
+
+* Pluggable previews
+
+=org-quiver-preview-function= defaults to nil.  The package has no dependency
+on org-typst-math or any other preview renderer.
+
+The callback receives =(OVERLAY URL LINK)= in the document buffer.  OVERLAY
+belongs to Org, URL is the complete editor URL, and LINK is the parsed Org
+element.  Set the overlay's display and return non-nil when accepting a
+request (including asynchronous rendering).  Return nil to leave plain text.
+Async providers must discard results after the overlay is cleared/changed.
+The option may be buffer-local for different document workflows.
+
+An optional Typst provider can be connected in personal configuration:
+
+#+begin_src emacs-lisp
+(with-eval-after-load 'org-quiver
+  (setq org-quiver-preview-function
+        (lambda (overlay url _link)
+          (org-typst-math-preview-link
+           overlay (lambda () (org-quiver-fletcher url))))))
+#+end_src
+
+This requires the org-typst-math generic content-preview extension and its
+matching helper.  That package receives ordinary Typst source: it does not
+decode Quiver or duplicate the converter.  A LaTeX preview package can instead
+call =org-quiver-latex= and render the result using the same callback contract.
+
+Use Org's =org-link-preview= / =C-c C-x C-v= to display or clear links.  Links
+with descriptions need Org's include-linked option (numeric prefix 1).
+No custom interactive preview command is added.
+
+* Development
+
+#+begin_src sh
+make test
+#+end_src
+
+To also exercise native Typst export, put a compatible ox-typst checkout on
+the load path: =make test LOAD_PATH="-L /path/to/ox-typst"=.
+
+The package and converters are MIT-licensed.  The Fletcher port retains the
+upstream copyright and license notice in =org-quiver-fletcher.el=.
